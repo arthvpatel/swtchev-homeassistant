@@ -144,25 +144,6 @@ rest:
 - The local web UI bundle also references additional endpoints like `GetNetworkInfo`, `ListNetworkProfile`, `ListLocalCards`, `ocppGetVariables`, and `ocppSetVariables`, which may allow broader monitoring or configuration in future work.[file:1]
 - The meter field is currently treated as raw until its exact units are confirmed from live responses.[file:1]
 
-## Suggested repository structure
-
-```text
-.
-├── README.md
-├── rest.yaml
-├── templates/
-│   └── evl007.yaml
-└── lovelace/
-    └── ev_charging_dashboard.yaml
-```
-
-## Roadmap
-
-- Confirm authenticated vs unauthenticated API access.
-- Validate exact units for `Meter`.
-- Add energy dashboard compatibility once meter units are confirmed.
-- Expand OCPP variable mapping for configuration entities.
-- Optionally turn this into a custom integration.
 
 ## Credits
 
