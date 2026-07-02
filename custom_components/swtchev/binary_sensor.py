@@ -39,6 +39,7 @@ BINARY_SENSORS: tuple[SwtchBinarySensorDescription, ...] = (
     SwtchBinarySensorDescription(
         key="connected",
         name="Connected",
+        device_class=BinarySensorDeviceClass.PLUG,
         value_type="connected",
     ),
     SwtchBinarySensorDescription(
