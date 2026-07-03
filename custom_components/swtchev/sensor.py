@@ -130,7 +130,7 @@ class SwtchSensorEntity(SwtchCoordinatorEntity, SensorEntity):
                 data, ("data", "csInfo", "evses", 0, "connectors", 0, "voltage"), 0
             )
             try:
-                return round(float(current) * float(voltage) * 0.001, 1)
+                return round(float(current) * float(voltage), 1)
             except (TypeError, ValueError):
                 return None
 
