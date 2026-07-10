@@ -1,8 +1,0 @@
-{
-  "name": "Swtch EV Charger",
-  "content_in_root": false,
-  "domains": [
-    "swtchev"
-  ],
-  "homeassistant": "2025.1.0"
-}
