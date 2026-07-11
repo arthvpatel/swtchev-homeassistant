@@ -13,9 +13,7 @@ from .coordinator import SwtchDataUpdateCoordinator
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up Swtch EV from a config entry."""
     hass.data.setdefault(DOMAIN, {})
-
     session = async_get_clientsession(hass)
     api = SwtchApiClient(
         session=session,
@@ -25,23 +23,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     coordinator = SwtchDataUpdateCoordinator(
         hass=hass,
         api=api,
-        scan_interval=entry.options.get(
-            CONF_SCAN_INTERVAL, entry.data[CONF_SCAN_INTERVAL]
-        ),
+        scan_interval=entry.options.get(CONF_SCAN_INTERVAL, entry.data[CONF_SCAN_INTERVAL]),
     )
     await coordinator.async_config_entry_first_refresh()
-
-    hass.data[DOMAIN][entry.entry_id] = {
-        "api": api,
-        "coordinator": coordinator,
-    }
-
+    hass.data[DOMAIN][entry.entry_id] = {"api": api, "coordinator": coordinator}
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Unload a config entry."""
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id, None)
