@@ -22,6 +22,8 @@ class SwtchApiResponseError(SwtchApiError):
 
 
 class SwtchApiClient:
+    """Small async client for the local charger API."""
+
     def __init__(self, session: ClientSession, host: str, timeout: int) -> None:
         self._session = session
         self.host = host
