@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import timedelta
 import logging
 
@@ -29,7 +30,13 @@ class SwtchDataUpdateCoordinator(DataUpdateCoordinator[dict]):
     async def _async_update_data(self) -> dict:
         """Fetch data from API endpoint."""
         try:
-            return await self.api.async_get_station_info()
+            station_info, network_info = await asyncio.gather(
+                self.api.async_get_station_info(),
+                self.api.async_get_network_info(),
+            )
+            if not isinstance(station_info, dict) or not isinstance(network_info, dict):
+                raise UpdateFailed("Charger returned an invalid response")
+            return {**station_info, "_network": network_info}
         except SwtchApiConnectionError as err:
             raise UpdateFailed(str(err)) from err
         except SwtchApiError as err:

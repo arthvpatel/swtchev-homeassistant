@@ -9,6 +9,8 @@ A HACS custom integration for Swtch / Joint Tech EVL007 chargers using the charg
   - Scan interval (seconds)
   - Timeout (seconds)
 - Polls `http://<charger-ip>/api/GetChargingStationInfo`
+- Polls `http://<charger-ip>/api/GetNetworkInfo` and exposes non-sensitive interface
+  details as diagnostic sensors. Credentials and OCPP profile data are not exposed.
 - Creates sensors for:
   - Status
   - CP Status
@@ -18,6 +20,12 @@ A HACS custom integration for Swtch / Joint Tech EVL007 chargers using the charg
   - Meter Raw
   - Firmware
   - Mode
+- Creates diagnostic sensors for Ethernet and Wi-Fi network details:
+  - IP address
+  - Signal strength
+  - DNS, gateway, and netmask
+  - MAC address
+  - Interface state and online status
 - Creates binary sensors for:
   - Online
   - Occupied
