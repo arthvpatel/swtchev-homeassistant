@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from homeassistant.components.binary_sensor import BinarySensorDeviceClass, BinarySensorEntity, BinarySensorEntityDescription
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN
@@ -27,6 +28,7 @@ BINARY_SENSORS: tuple[SwtchBinarySensorDescription, ...] = (
         key="online",
         name="Online",
         path=("data", "csInfo", "isOnline"),
+        entity_category=EntityCategory.DIAGNOSTIC,
         device_class=BinarySensorDeviceClass.CONNECTIVITY,
         value_type="bool",
     ),
@@ -34,11 +36,13 @@ BINARY_SENSORS: tuple[SwtchBinarySensorDescription, ...] = (
         key="occupied",
         name="Occupied",
         path=("data", "csInfo", "isOccupied"),
+        entity_category=EntityCategory.DIAGNOSTIC,
         value_type="bool",
     ),
     SwtchBinarySensorDescription(
         key="connected",
         name="Connected",
+        device_class=BinarySensorDeviceClass.PLUG,
         value_type="connected",
     ),
     SwtchBinarySensorDescription(
