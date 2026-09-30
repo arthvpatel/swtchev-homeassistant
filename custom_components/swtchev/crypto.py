@@ -14,7 +14,8 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
-# Both values are hard-coded in the charger web UI's JavaScript
+# Both values are hard-coded in the charger web UI's JavaScript (firmware v1.3.57).
+# If a firmware update changes them, the client reads the new ones from the web UI.
 BODY_IV = b"7kR9mX2pL5qW8vN1"
 SERVER_PUBLIC_KEY = "AAAAC3NzaC1lZDI1NTE5AAAAIDOUw9J5Vy3L24LNIzxzOjUcYTiLxssLHCPYMSegxoMm"
 
@@ -28,16 +29,18 @@ def _ed25519_to_x25519(public_key: bytes) -> bytes:
     return u.to_bytes(32, "little")
 
 
-def _server_public_key() -> X25519PublicKey:
+def _server_public_key(public_key: str) -> X25519PublicKey:
     """Extract the 32-byte key from the ssh-ed25519 blob and convert it."""
-    blob = base64.b64decode(SERVER_PUBLIC_KEY)
+    blob = base64.b64decode(public_key)
     name_len = int.from_bytes(blob[0:4], "big")
     key_start = 4 + name_len + 4
     ed_key = blob[key_start : key_start + 32]
     return X25519PublicKey.from_public_bytes(_ed25519_to_x25519(ed_key))
 
 
-def encrypt_body(payload: Any) -> dict[str, str]:
+def encrypt_body(
+    payload: Any, public_key: str = SERVER_PUBLIC_KEY, iv: bytes = BODY_IV
+) -> dict[str, str]:
     """Encrypt a request body the same way the charger web UI does.
 
     The body is AES-256-CBC encrypted with a random key (``d``). That key is
@@ -49,11 +52,11 @@ def encrypt_body(payload: Any) -> dict[str, str]:
 
     padder = padding.PKCS7(128).padder()
     padded = padder.update(plaintext) + padder.finalize()
-    encryptor = Cipher(algorithms.AES(body_key), modes.CBC(BODY_IV)).encryptor()
+    encryptor = Cipher(algorithms.AES(body_key), modes.CBC(iv)).encryptor()
     data = encryptor.update(padded) + encryptor.finalize()
 
     ephemeral = X25519PrivateKey.generate()
-    shared = ephemeral.exchange(_server_public_key())
+    shared = ephemeral.exchange(_server_public_key(public_key))
     nonce = os.urandom(12)
     wrapped_key = AESGCM(hashlib.sha256(shared).digest()).encrypt(nonce, body_key, None)
     ephemeral_public = ephemeral.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)

@@ -46,17 +46,26 @@ Upload this repository with the `custom_components/swtchev/` folder intact.
 3. Restart Home Assistant.
 4. Go to **Settings -> Devices & services -> Add integration**.
 5. Search for **Swtch EV Charger**.
-6. Enter the charger IP address, admin password, scan interval, and timeout.
+6. Enter the charger IP address, scan interval, and timeout.
+7. Confirm the admin password. It is pre-filled with the charger's factory password; replace it if you changed the password.
 
 ## Authentication
 
-Enter the charger's **admin password** during setup. The integration logs in to the charger the same way its web interface does and gets a new access token before the current one expires (tokens last 24 hours). If you have never changed the password, use the charger's factory admin password; the charger web interface logs in with it automatically when you open it.
+The integration logs in to the charger the same way its web interface does and gets a new access token before the current one expires (tokens last 24 hours). During setup, it reads the factory admin password from the charger web interface, which logs in with it automatically, and pre-fills the password field. If you changed the password, enter yours instead.
 
 Anyone on your network can use the factory password to control the charger. Consider changing it in the charger web interface, then entering the new password in Home Assistant under **Configure**.
 
 The charger accepts only one login session at a time. Opening the charger web interface logs Home Assistant out, and the integration then logs back in on its next poll, which may in turn log the browser out. This is expected.
 
-The login request is encrypted with keys built into the charger's web interface (firmware v1.3.x). A firmware update could change this and stop the login from working.
+The login request is encrypted with a key built into the charger's web interface (firmware v1.3.57). If a login is rejected, the integration reads the key from the charger web interface in case a firmware update changed it. A firmware update that changes how the login works could still stop it from working.
+
+### Finding the factory password
+
+If setup says it couldn't read the factory password, you can find it yourself:
+
+1. In a browser, open `view-source:http://<charger-ip>/`.
+2. Click the script link in the page, for example `/assets/index-CnGe0hkn.js`. The name changes between firmware versions.
+3. Search the script (Ctrl+F) for `username:"admin",password:"`. The factory password is the text between the quotes right after it.
 
 ## Updating the password
 
@@ -97,6 +106,7 @@ custom_components/swtchev/
   manifest.json
   sensor.py
   strings.json
+  webui.py
   en.json
 ```
 

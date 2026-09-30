@@ -11,8 +11,9 @@ from typing import Any
 import aiohttp
 
 from .const import DEFAULT_USERNAME
-from .crypto import encrypt_body
+from .crypto import BODY_IV, SERVER_PUBLIC_KEY, encrypt_body
 from .helpers import nested_get
+from .webui import WebUiSettings, async_fetch_settings
 
 # Log in again this many seconds before the access token expires
 TOKEN_RENEW_MARGIN = 300
@@ -58,6 +59,9 @@ class SwtchApiClient:
         self.token: str | None = None
         self._token_expiry: float | None = None
         self._login_lock = asyncio.Lock()
+        self._public_key = SERVER_PUBLIC_KEY
+        self._iv = BODY_IV
+        self._checked_web_ui = False
 
     def _headers(self) -> dict[str, str]:
         """Build request headers, including auth if a token is set."""
@@ -108,11 +112,26 @@ class SwtchApiClient:
 
     async def _login(self) -> None:
         """Log in and store the new access token; hold the login lock."""
+        try:
+            await self._try_login()
+        except SwtchApiAuthError:
+            # A firmware update may have changed the encryption key; the
+            # rejection looks the same as a wrong password, so check once.
+            if self._checked_web_ui or not await self._update_from_web_ui():
+                raise
+            await self._try_login()
+
+    async def _try_login(self) -> None:
+        """Send one login request and store the new access token."""
         self.token = None
         result = await self._request(
             "POST",
             "/Login",
-            encrypt_body({"username": self.username, "password": self.password}),
+            encrypt_body(
+                {"username": self.username, "password": self.password},
+                self._public_key,
+                self._iv,
+            ),
             error_body_ok=True,
         )
         token = nested_get(result, ("data", "accessToken"))
@@ -122,6 +141,27 @@ class SwtchApiClient:
             )
         self.token = token
         self._token_expiry = _token_expiry(token)
+
+    async def _update_from_web_ui(self) -> bool:
+        """Load the key and IV from the web UI; return True if they changed."""
+        self._checked_web_ui = True
+        settings = await async_fetch_settings(self.session, self.host, self.timeout)
+        if settings is None:
+            return False
+        return self.use_web_ui_settings(settings)
+
+    def use_web_ui_settings(self, settings: WebUiSettings) -> bool:
+        """Use the key and IV found in the web UI; return True if they changed.
+
+        The web UI is then not fetched again when a login is rejected.
+        """
+        self._checked_web_ui = True
+        public_key = settings.public_key or self._public_key
+        iv = settings.iv or self._iv
+        if (public_key, iv) == (self._public_key, self._iv):
+            return False
+        self._public_key, self._iv = public_key, iv
+        return True
 
     def _token_is_fresh(self) -> bool:
         """Return True if the current token is set and not about to expire."""
