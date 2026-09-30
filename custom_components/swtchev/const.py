@@ -9,4 +9,9 @@ DEFAULT_TIMEOUT = 10
 
 CONF_SCAN_INTERVAL = "scan_interval"
 CONF_TOKEN = "api_token"
+CONF_PASSWORD = "password"
+
+# Account the charger web UI logs in with
+DEFAULT_USERNAME = "admin"
+
 PLATFORMS = ["sensor", "binary_sensor"]

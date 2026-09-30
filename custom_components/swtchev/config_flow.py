@@ -24,7 +24,14 @@ from .api import (
     SwtchApiError,
     SwtchApiResponseError,
 )
-from .const import CONF_SCAN_INTERVAL, CONF_TOKEN, DEFAULT_SCAN_INTERVAL, DEFAULT_TIMEOUT, DOMAIN
+from .const import (
+    CONF_PASSWORD,
+    CONF_SCAN_INTERVAL,
+    CONF_TOKEN,
+    DEFAULT_SCAN_INTERVAL,
+    DEFAULT_TIMEOUT,
+    DOMAIN,
+)
 
 
 def build_user_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
@@ -35,7 +42,12 @@ def build_user_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
             vol.Required(CONF_HOST, default=defaults.get(CONF_HOST, "")): TextSelector(
                 TextSelectorConfig(type="text")
             ),
-            vol.Required(
+            vol.Optional(
+                CONF_PASSWORD, default=defaults.get(CONF_PASSWORD, "")
+            ): TextSelector(
+                TextSelectorConfig(type="password")
+            ),
+            vol.Optional(
                 CONF_TOKEN, default=defaults.get(CONF_TOKEN, "")
             ): TextSelector(
                 TextSelectorConfig(type="password")
@@ -67,7 +79,8 @@ class SwtchConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             host = str(user_input[CONF_HOST]).strip()
-            token = str(user_input[CONF_TOKEN]).strip()
+            password = str(user_input.get(CONF_PASSWORD, "")).strip()
+            token = str(user_input.get(CONF_TOKEN, "")).strip()
             scan_interval = int(user_input[CONF_SCAN_INTERVAL])
             timeout = int(user_input[CONF_TIMEOUT])
 
@@ -76,10 +89,16 @@ class SwtchConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
             session = async_get_clientsession(self.hass)
             client = SwtchApiClient(
-                session=session, host=host, timeout=timeout, token=token
+                session=session,
+                host=host,
+                timeout=timeout,
+                token=token or None,
+                password=password or None,
             )
 
             try:
+                if not password and not token:
+                    raise SwtchApiAuthError("A password or API token is required")
                 await client.async_get_station_info()
             except SwtchApiAuthError:
                 errors["base"] = "invalid_auth"
@@ -96,6 +115,7 @@ class SwtchConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     title=f"Swtch EV Charger ({host})",
                     data={
                         CONF_HOST: host,
+                        CONF_PASSWORD: password,
                         CONF_TOKEN: token,
                         CONF_SCAN_INTERVAL: scan_interval,
                         CONF_TIMEOUT: timeout,
@@ -129,13 +149,17 @@ class SwtchOptionsFlowHandler(config_entries.OptionsFlowWithReload):
             return self.async_create_entry(
                 title="",
                 data={
-                    CONF_TOKEN: str(user_input[CONF_TOKEN]).strip(),
+                    CONF_PASSWORD: str(user_input.get(CONF_PASSWORD, "")).strip(),
+                    CONF_TOKEN: str(user_input.get(CONF_TOKEN, "")).strip(),
                     CONF_SCAN_INTERVAL: int(user_input[CONF_SCAN_INTERVAL]),
                     CONF_TIMEOUT: int(user_input[CONF_TIMEOUT]),
                 },
             )
 
         current = {
+            CONF_PASSWORD: self._config_entry.options.get(
+                CONF_PASSWORD, self._config_entry.data.get(CONF_PASSWORD, "")
+            ),
             CONF_TOKEN: self._config_entry.options.get(
                 CONF_TOKEN, self._config_entry.data.get(CONF_TOKEN, "")
             ),
@@ -151,7 +175,10 @@ class SwtchOptionsFlowHandler(config_entries.OptionsFlowWithReload):
 
         schema = vol.Schema(
             {
-                vol.Required(
+                vol.Optional(
+                    CONF_PASSWORD, default=current[CONF_PASSWORD]
+                ): TextSelector(TextSelectorConfig(type="password")),
+                vol.Optional(
                     CONF_TOKEN, default=current[CONF_TOKEN]
                 ): TextSelector(TextSelectorConfig(type="password")),
                 vol.Required(

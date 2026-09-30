@@ -8,7 +8,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .api import SwtchApiClient
-from .const import CONF_SCAN_INTERVAL, CONF_TOKEN, DOMAIN, PLATFORMS
+from .const import CONF_PASSWORD, CONF_SCAN_INTERVAL, CONF_TOKEN, DOMAIN, PLATFORMS
 from .coordinator import SwtchDataUpdateCoordinator
 
 
@@ -20,7 +20,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     api = SwtchApiClient(
         session=session,
         host=entry.data[CONF_HOST],
-        token=entry.data.get(CONF_TOKEN),
+        token=entry.options.get(CONF_TOKEN, entry.data.get(CONF_TOKEN)) or None,
+        password=entry.options.get(CONF_PASSWORD, entry.data.get(CONF_PASSWORD)) or None,
         timeout=entry.options.get(CONF_TIMEOUT, entry.data[CONF_TIMEOUT]),
     )
 

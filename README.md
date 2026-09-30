@@ -6,6 +6,8 @@ A HACS custom integration for Swtch / Joint Tech EVL007 chargers using the charg
 
 - UI config flow for:
   - IP address
+  - Admin password (the integration logs in and renews its token automatically)
+  - API token (optional fallback)
   - Scan interval (seconds)
   - Timeout (seconds)
 - Polls `http://<charger-ip>/api/GetChargingStationInfo`
@@ -45,9 +47,19 @@ Upload this repository with the `custom_components/swtchev/` folder intact.
 3. Restart Home Assistant.
 4. Go to **Settings -> Devices & services -> Add integration**.
 5. Search for **Swtch EV Charger**.
-6. Enter the charger IP address, bearer token, scan interval, and timeout.
+6. Enter the charger IP address, admin password, scan interval, and timeout.
 
-## Getting the API token
+## Authentication
+
+Enter the charger's **admin password** during setup. The integration logs in to the charger the same way its web interface does and gets a new access token before the current one expires (tokens last 24 hours). If you have never changed the password, use the charger's factory admin password; the charger web interface logs in with it automatically when you open it.
+
+Anyone on your network can use the factory password to control the charger. Consider changing it in the charger web interface, then entering the new password in Home Assistant under **Configure**.
+
+The login request is encrypted with keys built into the charger's web interface (firmware v1.3.x). If a firmware update changes this and login stops working, leave the password empty and use an API token instead, as described below.
+
+## Getting an API token manually
+
+Only needed if you leave the password empty. A token expires after 24 hours, so you will need to replace it regularly.
 
 The token is obtained from the charger web UI in your local network. Treat it like a password: do not share it, paste it into GitHub issues, commit it to this repository, or include it in screenshots.
 
@@ -86,14 +98,13 @@ curl.exe -sS `
 
 A working token returns JSON station data. A response containing HTTP `401` means the token is invalid, expired, missing, or copied with extra text.
 
-## Updating a token
+## Updating the password or token
 
-If the charger UI logs you out or the integration displays an authentication error:
+If you change the charger password, or you use a manual token and it has expired:
 
-1. Obtain a new token using the browser method above.
-2. In Home Assistant, open **Settings -> Devices & services -> Swtch EV Charger**.
-3. Select **Configure**.
-4. Replace the API token and submit the form. The integration reloads automatically.
+1. In Home Assistant, open **Settings -> Devices & services -> Swtch EV Charger**.
+2. Select **Configure**.
+3. Enter the new password or token and submit the form. The integration reloads automatically.
 
 ## Polling guidance
 
@@ -105,10 +116,10 @@ The **Energy** sensor reports the charger's cumulative `Meter` register (in 0.1 
 
 ## Security notes
 
-- The token grants access to the charger’s local API. Handle it as a credential.
+- The password and token grant access to the charger’s local API. Handle them as credentials.
 - The API is local HTTP, not HTTPS, so keep the charger on a trusted LAN/VLAN and do not expose it to the internet.
-- This integration does not log the token.
-- The token is entered through the Home Assistant UI; never hard-code it in repository files.
+- This integration does not log the password or token.
+- Credentials are entered through the Home Assistant UI; never hard-code them in repository files.
 
 ## Repository layout
 
@@ -120,6 +131,7 @@ custom_components/swtchev/
   config_flow.py
   const.py
   coordinator.py
+  crypto.py
   entity.py
   helpers.py
   manifest.json

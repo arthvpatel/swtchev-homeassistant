@@ -3,10 +3,11 @@
     "step": {
       "user": {
         "title": "Connect to Swtch EV Charger",
-        "description": "Enter the charger's IP address, API token, and polling settings.",
+        "description": "Enter the charger's IP address, admin password, and polling settings. The integration logs in and renews its token automatically. An API token is only needed if you leave the password empty.",
         "data": {
           "host": "IP address",
-          "api_token": "API token (Bearer token)",
+          "password": "Admin password",
+          "api_token": "API token (optional)",
           "scan_interval": "Scan interval (seconds)",
           "timeout": "Timeout (seconds)"
         }
@@ -15,7 +16,7 @@
     "error": {
       "cannot_connect": "Failed to connect to the charger",
       "invalid_response": "The charger returned an invalid response",
-      "invalid_auth": "The charger rejected the API token",
+      "invalid_auth": "The charger rejected the password or API token",
       "unknown": "Unexpected error"
     },
     "abort": {
@@ -26,9 +27,10 @@
     "step": {
       "init": {
         "title": "Swtch EV Charger options",
-        "description": "Update the API token and polling settings.",
+        "description": "Update the admin password, API token, and polling settings.",
         "data": {
-          "api_token": "API token (Bearer token)",
+          "password": "Admin password",
+          "api_token": "API token (optional)",
           "scan_interval": "Scan interval (seconds)",
           "timeout": "Timeout (seconds)"
         }
