@@ -6,7 +6,13 @@ from dataclasses import dataclass
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorEntityDescription, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import EntityCategory, UnitOfElectricCurrent, UnitOfElectricPotential, UnitOfPower
+from homeassistant.const import (
+    EntityCategory,
+    UnitOfElectricCurrent,
+    UnitOfElectricPotential,
+    UnitOfEnergy,
+    UnitOfPower,
+)
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -78,6 +84,17 @@ SENSORS: tuple[SwtchSensorDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         value_type="int",  # meter_raw is presented as a float, but decimals are always zero
         entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    SwtchSensorDescription(
+        key="energy",
+        name="Energy",
+        path=("data", "csInfo", "evses", 0, "connectors", 0, "Meter"),
+        device_class=SensorDeviceClass.ENERGY,
+        native_unit_of_measurement=UnitOfEnergy.WATT_HOUR,
+        suggested_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,  # Show energy in kWh by default without changing the math
+        suggested_display_precision=3,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        value_type="energy",
     ),
     SwtchSensorDescription(
         key="firmware",
@@ -275,5 +292,14 @@ class SwtchSensorEntity(SwtchCoordinatorEntity, SensorEntity):
                 return round(float(value))
             except (TypeError, ValueError):
                 return None
+
+        if desc.value_type == "energy":
+            try:
+                energy = float(value)
+            except (TypeError, ValueError):
+                return None
+            # A zero reading is a firmware glitch, not a real reset; reporting it
+            # would make total_increasing count the full meter value again.
+            return energy if energy > 0 else None
 
         return value

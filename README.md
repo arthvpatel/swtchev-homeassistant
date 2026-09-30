@@ -18,6 +18,7 @@ A HACS custom integration for Swtch / Joint Tech EVL007 chargers using the charg
   - Current
   - Power
   - Meter Raw
+  - Energy (cumulative meter reading)
   - Firmware
   - Mode
 - Creates diagnostic sensors for Ethernet and Wi-Fi network details:
@@ -97,6 +98,10 @@ If the charger UI logs you out or the integration displays an authentication err
 ## Polling guidance
 
 Start with a scan interval of **300 seconds**. Some EVL007 firmware revisions can become unreliable when polled too frequently, so reduce the interval only after confirming stable behaviour.
+
+## Hourly energy usage
+
+The **Energy** sensor reports the charger's cumulative `Meter` register (in Wh, displayed as kWh) with Home Assistant's `total_increasing` energy state class. For example, a meter reading of `223812.00` is shown as `223.812 kWh`. Home Assistant records hourly long-term statistics for it automatically, so you can add it to the Energy dashboard under **Settings → Dashboards → Energy → Individual devices** to see hourly usage. If you want a sensor that resets every hour, day, or month, create a Utility Meter helper with this sensor as its source.
 
 ## Security notes
 
