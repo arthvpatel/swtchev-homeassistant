@@ -92,7 +92,7 @@ SENSORS: tuple[SwtchSensorDescription, ...] = (
         device_class=SensorDeviceClass.ENERGY,
         native_unit_of_measurement=UnitOfEnergy.WATT_HOUR,
         suggested_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,  # Show energy in kWh by default without changing the math
-        suggested_display_precision=3,
+        suggested_display_precision=1,
         state_class=SensorStateClass.TOTAL_INCREASING,
         value_type="energy",
     ),
@@ -300,6 +300,7 @@ class SwtchSensorEntity(SwtchCoordinatorEntity, SensorEntity):
                 return None
             # A zero reading is a firmware glitch, not a real reset; reporting it
             # would make total_increasing count the full meter value again.
-            return energy if energy > 0 else None
+            # Meter is reported in 0.1 Wh
+            return energy / 10 if energy > 0 else None
 
         return value

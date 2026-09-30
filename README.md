@@ -101,7 +101,7 @@ Start with a scan interval of **300 seconds**. Some EVL007 firmware revisions ca
 
 ## Hourly energy usage
 
-The **Energy** sensor reports the charger's cumulative `Meter` register (in Wh, displayed as kWh) with Home Assistant's `total_increasing` energy state class. For example, a meter reading of `223812.00` is shown as `223.812 kWh`. Home Assistant records hourly long-term statistics for it automatically, so you can add it to the Energy dashboard under **Settings → Dashboards → Energy → Individual devices** to see hourly usage. If you want a sensor that resets every hour, day, or month, create a Utility Meter helper with this sensor as its source.
+The **Energy** sensor reports the charger's cumulative `Meter` register (in 0.1 Wh, displayed as kWh) with Home Assistant's `total_increasing` energy state class. For example, a meter reading of `332509.00` is shown as `33.3 kWh`. Home Assistant records hourly long-term statistics for it automatically, so you can add it to the Energy dashboard under **Settings → Dashboards → Energy → Individual devices** to see hourly usage. If you want a sensor that resets every hour, day, or month, create a Utility Meter helper with this sensor as its source.
 
 ## Security notes
 
