@@ -41,23 +41,23 @@ class SwtchApiClient:
         self,
         session: aiohttp.ClientSession,
         host: str,
+        password: str,
         timeout: int = 10,
-        token: str | None = None,
-        password: str | None = None,
         username: str = DEFAULT_USERNAME,
     ) -> None:
         """Initialize the API client.
 
-        With a password, the client logs in and renews the token by itself.
-        Without one, it uses the given token as-is.
+        The client logs in and renews its token by itself. The charger keeps
+        only one valid token at a time, so logins are serialized.
         """
         self.session = session
         self.host = host
         self.timeout = timeout
-        self.token = token
         self.username = username
         self.password = password
-        self._token_expiry = _token_expiry(token)
+        self.token: str | None = None
+        self._token_expiry: float | None = None
+        self._login_lock = asyncio.Lock()
 
     def _headers(self) -> dict[str, str]:
         """Build request headers, including auth if a token is set."""
@@ -106,8 +106,8 @@ class SwtchApiClient:
                 f"Error connecting to charger at {self.host}: {err}"
             ) from err
 
-    async def async_login(self) -> None:
-        """Log in with the password and store the new access token."""
+    async def _login(self) -> None:
+        """Log in and store the new access token; hold the login lock."""
         self.token = None
         result = await self._request(
             "POST",
@@ -123,23 +123,36 @@ class SwtchApiClient:
         self.token = token
         self._token_expiry = _token_expiry(token)
 
+    def _token_is_fresh(self) -> bool:
+        """Return True if the current token is set and not about to expire."""
+        if not self.token:
+            return False
+        return (
+            self._token_expiry is None
+            or time.time() < self._token_expiry - TOKEN_RENEW_MARGIN
+        )
+
+    async def _ensure_token(self, rejected: str | None = None) -> None:
+        """Log in unless another request already got a usable token.
+
+        A new login invalidates the previous token, so concurrent requests
+        must share one login instead of each starting their own.
+        """
+        async with self._login_lock:
+            if self._token_is_fresh() and self.token != rejected:
+                return
+            await self._login()
+
     async def _get(self, path: str) -> Any:
         """Perform an authenticated GET, logging in again when needed."""
-        if self.password and (
-            not self.token
-            or (
-                self._token_expiry is not None
-                and time.time() > self._token_expiry - TOKEN_RENEW_MARGIN
-            )
-        ):
-            await self.async_login()
+        await self._ensure_token()
+        token = self.token
         try:
             return await self._request("GET", path)
         except SwtchApiAuthError:
-            if not self.password:
-                raise
-        # The token was rejected before its expiry (e.g. charger reboot); retry once
-        await self.async_login()
+            pass
+        # The token was invalidated early, e.g. by a login from the web UI
+        await self._ensure_token(rejected=token)
         return await self._request("GET", path)
 
     async def async_get_station_info(self) -> Any:

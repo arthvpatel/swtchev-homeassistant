@@ -7,7 +7,6 @@ A HACS custom integration for Swtch / Joint Tech EVL007 chargers using the charg
 - UI config flow for:
   - IP address
   - Admin password (the integration logs in and renews its token automatically)
-  - API token (optional fallback)
   - Scan interval (seconds)
   - Timeout (seconds)
 - Polls `http://<charger-ip>/api/GetChargingStationInfo`
@@ -55,56 +54,17 @@ Enter the charger's **admin password** during setup. The integration logs in to 
 
 Anyone on your network can use the factory password to control the charger. Consider changing it in the charger web interface, then entering the new password in Home Assistant under **Configure**.
 
-The login request is encrypted with keys built into the charger's web interface (firmware v1.3.x). If a firmware update changes this and login stops working, leave the password empty and use an API token instead, as described below.
+The charger accepts only one login session at a time. Opening the charger web interface logs Home Assistant out, and the integration then logs back in on its next poll, which may in turn log the browser out. This is expected.
 
-## Getting an API token manually
+The login request is encrypted with keys built into the charger's web interface (firmware v1.3.x). A firmware update could change this and stop the login from working.
 
-Only needed if you leave the password empty. A token expires after 24 hours, so you will need to replace it regularly.
+## Updating the password
 
-The token is obtained from the charger web UI in your local network. Treat it like a password: do not share it, paste it into GitHub issues, commit it to this repository, or include it in screenshots.
-
-### Browser method
-
-1. Browse to `http://<charger-ip>`; for example, `http://10.10.10.20`.
-2. Sign in to the charger web interface.
-3. Press **F12** to open browser Developer Tools.
-4. Open **Network** and enable **Preserve log**.
-5. Choose the **Fetch/XHR** filter, then refresh the page.
-6. Click a successful request such as `GetWifiList`, `GetNetworkInfo`, or `GetChargingStationInfo`.
-7. Open **Headers** and find the request header named `Authorization`.
-8. Its value will be formatted as:
-
-   ```text
-   Bearer eyJ...
-   ```
-
-9. Copy only the text after `Bearer ` (the token beginning with `eyJ...`) into the **API token** field during the Home Assistant setup flow.
-
-Do not include the word `Bearer` in the Home Assistant field; the integration adds it automatically.
-
-### Token validation in PowerShell
-
-Before configuring Home Assistant, you can test the token from a machine on the same network:
-
-```powershell
-$ip = "10.10.10.20"
-$token = "PASTE_TOKEN_HERE"
-
-curl.exe -sS `
-  -H "Accept: application/json" `
-  -H "Authorization: Bearer $token" `
-  "http://$ip/api/GetChargingStationInfo"
-```
-
-A working token returns JSON station data. A response containing HTTP `401` means the token is invalid, expired, missing, or copied with extra text.
-
-## Updating the password or token
-
-If you change the charger password, or you use a manual token and it has expired:
+If you change the charger password:
 
 1. In Home Assistant, open **Settings -> Devices & services -> Swtch EV Charger**.
 2. Select **Configure**.
-3. Enter the new password or token and submit the form. The integration reloads automatically.
+3. Enter the new password and submit the form. The integration reloads automatically.
 
 ## Polling guidance
 
@@ -116,10 +76,10 @@ The **Energy** sensor reports the charger's cumulative `Meter` register (in 0.1 
 
 ## Security notes
 
-- The password and token grant access to the charger’s local API. Handle them as credentials.
+- The password grants access to the charger’s local API. Handle it as a credential.
 - The API is local HTTP, not HTTPS, so keep the charger on a trusted LAN/VLAN and do not expose it to the internet.
-- This integration does not log the password or token.
-- Credentials are entered through the Home Assistant UI; never hard-code them in repository files.
+- This integration does not log the password or its access token.
+- The password is entered through the Home Assistant UI; never hard-code it in repository files.
 
 ## Repository layout
 
