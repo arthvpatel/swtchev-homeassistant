@@ -18,7 +18,7 @@ A HACS custom integration for Swtch / Joint Tech EVL007 chargers using the charg
   - Voltage
   - Current
   - Power
-  - Meter Raw
+  - Meter Raw (disabled by default)
   - Energy (cumulative meter reading)
   - Firmware
   - Mode

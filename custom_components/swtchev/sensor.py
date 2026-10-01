@@ -84,6 +84,7 @@ SENSORS: tuple[SwtchSensorDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         value_type="int",  # meter_raw is presented as a float, but decimals are always zero
         entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
     ),
     SwtchSensorDescription(
         key="energy",
