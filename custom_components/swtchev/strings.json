@@ -3,19 +3,32 @@
     "step": {
       "user": {
         "title": "Connect to Swtch EV Charger",
-        "description": "Enter the charger's IP address, API token, and polling settings.",
+        "description": "Enter the charger's IP address and polling settings.",
         "data": {
           "host": "IP address",
-          "api_token": "API token (Bearer token)",
           "scan_interval": "Scan interval (seconds)",
           "timeout": "Timeout (seconds)"
+        }
+      },
+      "password": {
+        "title": "Charger admin password",
+        "description": "The field is pre-filled with the factory password the charger web interface uses. If you changed the admin password, enter yours instead. The integration logs in and renews its token automatically.",
+        "data": {
+          "password": "Admin password"
+        }
+      },
+      "password_not_found": {
+        "title": "Charger admin password",
+        "description": "Couldn't read the factory password from the charger web interface. Enter the charger's admin password; the README explains how to find the factory password. The integration logs in and renews its token automatically.",
+        "data": {
+          "password": "Admin password"
         }
       }
     },
     "error": {
       "cannot_connect": "Failed to connect to the charger",
       "invalid_response": "The charger returned an invalid response",
-      "invalid_auth": "The charger rejected the API token",
+      "invalid_auth": "The charger rejected the password",
       "unknown": "Unexpected error"
     },
     "abort": {
@@ -26,9 +39,9 @@
     "step": {
       "init": {
         "title": "Swtch EV Charger options",
-        "description": "Update the API token and polling settings.",
+        "description": "Update the admin password and polling settings.",
         "data": {
-          "api_token": "API token (Bearer token)",
+          "password": "Admin password",
           "scan_interval": "Scan interval (seconds)",
           "timeout": "Timeout (seconds)"
         }

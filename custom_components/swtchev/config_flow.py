@@ -24,21 +24,23 @@ from .api import (
     SwtchApiError,
     SwtchApiResponseError,
 )
-from .const import CONF_SCAN_INTERVAL, CONF_TOKEN, DEFAULT_SCAN_INTERVAL, DEFAULT_TIMEOUT, DOMAIN
+from .const import (
+    CONF_PASSWORD,
+    CONF_SCAN_INTERVAL,
+    DEFAULT_SCAN_INTERVAL,
+    DEFAULT_TIMEOUT,
+    DOMAIN,
+)
+from .webui import WebUiSettings, async_fetch_settings
 
 
 def build_user_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
-    """Build the config form schema."""
+    """Build the connection form schema."""
     defaults = defaults or {}
     return vol.Schema(
         {
             vol.Required(CONF_HOST, default=defaults.get(CONF_HOST, "")): TextSelector(
                 TextSelectorConfig(type="text")
-            ),
-            vol.Required(
-                CONF_TOKEN, default=defaults.get(CONF_TOKEN, "")
-            ): TextSelector(
-                TextSelectorConfig(type="password")
             ),
             vol.Required(
                 CONF_SCAN_INTERVAL,
@@ -56,28 +58,75 @@ def build_user_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
     )
 
 
+def build_password_schema(password: str) -> vol.Schema:
+    """Build the password form schema."""
+    return vol.Schema(
+        {
+            vol.Required(CONF_PASSWORD, default=password): TextSelector(
+                TextSelectorConfig(type="password")
+            ),
+        }
+    )
+
+
 class SwtchConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Swtch EV Charger."""
 
     VERSION = 1
 
+    def __init__(self) -> None:
+        """Initialize the flow."""
+        self._connection: dict[str, Any] = {}
+        self._web_ui: WebUiSettings | None = None
+
     async def async_step_user(self, user_input: dict[str, Any] | None = None):
-        """Handle the initial step."""
+        """Ask for the charger address and polling settings."""
         errors: dict[str, str] = {}
 
         if user_input is not None:
             host = str(user_input[CONF_HOST]).strip()
-            token = str(user_input[CONF_TOKEN]).strip()
-            scan_interval = int(user_input[CONF_SCAN_INTERVAL])
             timeout = int(user_input[CONF_TIMEOUT])
 
             await self.async_set_unique_id(host)
             self._abort_if_unique_id_configured()
 
-            session = async_get_clientsession(self.hass)
-            client = SwtchApiClient(
-                session=session, host=host, timeout=timeout, token=token
+            # Read the factory password the web UI logs in with, to pre-fill it
+            settings = await async_fetch_settings(
+                async_get_clientsession(self.hass), host, timeout
             )
+            if settings is None:
+                errors["base"] = "cannot_connect"
+            else:
+                self._connection = {
+                    CONF_HOST: host,
+                    CONF_SCAN_INTERVAL: int(user_input[CONF_SCAN_INTERVAL]),
+                    CONF_TIMEOUT: timeout,
+                }
+                self._web_ui = settings
+                return await self.async_step_password()
+
+            user_input[CONF_HOST] = host
+
+        return self.async_show_form(
+            step_id="user",
+            data_schema=build_user_schema(user_input),
+            errors=errors,
+        )
+
+    async def async_step_password(self, user_input: dict[str, Any] | None = None):
+        """Ask for the admin password, pre-filled with the factory one."""
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            password = str(user_input[CONF_PASSWORD]).strip()
+            host = self._connection[CONF_HOST]
+            client = SwtchApiClient(
+                session=async_get_clientsession(self.hass),
+                host=host,
+                password=password,
+                timeout=self._connection[CONF_TIMEOUT],
+            )
+            client.use_web_ui_settings(self._web_ui)
 
             try:
                 await client.async_get_station_info()
@@ -94,21 +143,22 @@ class SwtchConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             else:
                 return self.async_create_entry(
                     title=f"Swtch EV Charger ({host})",
-                    data={
-                        CONF_HOST: host,
-                        CONF_TOKEN: token,
-                        CONF_SCAN_INTERVAL: scan_interval,
-                        CONF_TIMEOUT: timeout,
-                    },
+                    data={**self._connection, CONF_PASSWORD: password},
                 )
 
-            user_input[CONF_HOST] = host
-
+        factory_password = self._web_ui.password or ""
         return self.async_show_form(
-            step_id="user",
-            data_schema=build_user_schema(user_input),
+            # Separate step texts, so the form says when the password was not found
+            step_id="password" if factory_password else "password_not_found",
+            data_schema=build_password_schema(factory_password),
             errors=errors,
         )
+
+    async def async_step_password_not_found(
+        self, user_input: dict[str, Any] | None = None
+    ):
+        """Ask for the admin password when the factory one was not found."""
+        return await self.async_step_password(user_input)
 
     @staticmethod
     @callback
@@ -129,15 +179,15 @@ class SwtchOptionsFlowHandler(config_entries.OptionsFlowWithReload):
             return self.async_create_entry(
                 title="",
                 data={
-                    CONF_TOKEN: str(user_input[CONF_TOKEN]).strip(),
+                    CONF_PASSWORD: str(user_input[CONF_PASSWORD]).strip(),
                     CONF_SCAN_INTERVAL: int(user_input[CONF_SCAN_INTERVAL]),
                     CONF_TIMEOUT: int(user_input[CONF_TIMEOUT]),
                 },
             )
 
         current = {
-            CONF_TOKEN: self._config_entry.options.get(
-                CONF_TOKEN, self._config_entry.data.get(CONF_TOKEN, "")
+            CONF_PASSWORD: self._config_entry.options.get(
+                CONF_PASSWORD, self._config_entry.data.get(CONF_PASSWORD, "")
             ),
             CONF_SCAN_INTERVAL: self._config_entry.options.get(
                 CONF_SCAN_INTERVAL,
@@ -152,7 +202,7 @@ class SwtchOptionsFlowHandler(config_entries.OptionsFlowWithReload):
         schema = vol.Schema(
             {
                 vol.Required(
-                    CONF_TOKEN, default=current[CONF_TOKEN]
+                    CONF_PASSWORD, default=current[CONF_PASSWORD]
                 ): TextSelector(TextSelectorConfig(type="password")),
                 vol.Required(
                     CONF_SCAN_INTERVAL, default=current[CONF_SCAN_INTERVAL]
