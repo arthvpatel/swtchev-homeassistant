@@ -90,20 +90,42 @@ class SwtchConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             await self.async_set_unique_id(host)
             self._abort_if_unique_id_configured()
 
-            # Read the factory password the web UI logs in with, to pre-fill it
-            settings = await async_fetch_settings(
-                async_get_clientsession(self.hass), host, timeout
-            )
-            if settings is None:
+            # Older firmware needs no login, so try without a password first
+            session = async_get_clientsession(self.hass)
+            probe = SwtchApiClient(session=session, host=host, timeout=timeout)
+            try:
+                await probe.async_get_station_info()
+            except SwtchApiAuthError:
+                pass
+            except SwtchApiConnectionError:
                 errors["base"] = "cannot_connect"
+            except SwtchApiResponseError:
+                errors["base"] = "invalid_response"
+            except Exception:  # noqa: BLE001
+                errors["base"] = "unknown"
             else:
-                self._connection = {
-                    CONF_HOST: host,
-                    CONF_SCAN_INTERVAL: int(user_input[CONF_SCAN_INTERVAL]),
-                    CONF_TIMEOUT: timeout,
-                }
-                self._web_ui = settings
-                return await self.async_step_password()
+                return self.async_create_entry(
+                    title=f"Swtch EV Charger ({host})",
+                    data={
+                        CONF_HOST: host,
+                        CONF_SCAN_INTERVAL: int(user_input[CONF_SCAN_INTERVAL]),
+                        CONF_TIMEOUT: timeout,
+                    },
+                )
+
+            if not errors:
+                # Read the factory password the web UI logs in with, to pre-fill it
+                settings = await async_fetch_settings(session, host, timeout)
+                if settings is None:
+                    errors["base"] = "cannot_connect"
+                else:
+                    self._connection = {
+                        CONF_HOST: host,
+                        CONF_SCAN_INTERVAL: int(user_input[CONF_SCAN_INTERVAL]),
+                        CONF_TIMEOUT: timeout,
+                    }
+                    self._web_ui = settings
+                    return await self.async_step_password()
 
             user_input[CONF_HOST] = host
 
@@ -160,6 +182,50 @@ class SwtchConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Ask for the admin password when the factory one was not found."""
         return await self.async_step_password(user_input)
 
+    async def async_step_reauth(self, entry_data: dict[str, Any]):
+        """Start reauthentication when the charger starts requiring a login."""
+        return await self.async_step_reauth_confirm()
+
+    async def async_step_reauth_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ):
+        """Ask for the admin password and store it in the entry."""
+        errors: dict[str, str] = {}
+        entry = self._get_reauth_entry()
+        host = entry.data[CONF_HOST]
+        timeout = entry.options.get(CONF_TIMEOUT, entry.data.get(CONF_TIMEOUT, DEFAULT_TIMEOUT))
+        session = async_get_clientsession(self.hass)
+
+        if self._web_ui is None:
+            self._web_ui = await async_fetch_settings(session, host, timeout) or WebUiSettings()
+
+        if user_input is not None:
+            password = str(user_input[CONF_PASSWORD]).strip()
+            client = SwtchApiClient(
+                session=session, host=host, password=password, timeout=timeout
+            )
+            client.use_web_ui_settings(self._web_ui)
+            try:
+                await client.async_get_station_info()
+            except SwtchApiAuthError:
+                errors["base"] = "invalid_auth"
+            except SwtchApiConnectionError:
+                errors["base"] = "cannot_connect"
+            except Exception:  # noqa: BLE001
+                errors["base"] = "unknown"
+            else:
+                return self.async_update_reload_and_abort(
+                    entry,
+                    data_updates={CONF_PASSWORD: password},
+                    options={**entry.options, CONF_PASSWORD: password},
+                )
+
+        return self.async_show_form(
+            step_id="reauth_confirm",
+            data_schema=build_password_schema(self._web_ui.password or ""),
+            errors=errors,
+        )
+
     @staticmethod
     @callback
     def async_get_options_flow(config_entry):
@@ -179,7 +245,7 @@ class SwtchOptionsFlowHandler(config_entries.OptionsFlowWithReload):
             return self.async_create_entry(
                 title="",
                 data={
-                    CONF_PASSWORD: str(user_input[CONF_PASSWORD]).strip(),
+                    CONF_PASSWORD: str(user_input.get(CONF_PASSWORD, "")).strip(),
                     CONF_SCAN_INTERVAL: int(user_input[CONF_SCAN_INTERVAL]),
                     CONF_TIMEOUT: int(user_input[CONF_TIMEOUT]),
                 },
@@ -201,8 +267,9 @@ class SwtchOptionsFlowHandler(config_entries.OptionsFlowWithReload):
 
         schema = vol.Schema(
             {
-                vol.Required(
-                    CONF_PASSWORD, default=current[CONF_PASSWORD]
+                vol.Optional(
+                    CONF_PASSWORD,
+                    description={"suggested_value": current[CONF_PASSWORD]},
                 ): TextSelector(TextSelectorConfig(type="password")),
                 vol.Required(
                     CONF_SCAN_INTERVAL, default=current[CONF_SCAN_INTERVAL]

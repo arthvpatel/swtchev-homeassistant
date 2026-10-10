@@ -6,7 +6,7 @@ A HACS custom integration for Swtch / Joint Tech EVL007 chargers using the charg
 
 - UI config flow for:
   - IP address
-  - Admin password (the integration logs in and renews its token automatically)
+  - Admin password, only if the charger requires one (the integration logs in and renews its token automatically)
   - Scan interval (seconds)
   - Timeout (seconds)
 - Polls `http://<charger-ip>/api/GetChargingStationInfo`
@@ -47,11 +47,13 @@ Upload this repository with the `custom_components/swtchev/` folder intact.
 4. Go to **Settings -> Devices & services -> Add integration**.
 5. Search for **Swtch EV Charger**.
 6. Enter the charger IP address, scan interval, and timeout.
-7. Confirm the admin password. It is pre-filled with the charger's factory password; replace it if you changed the password.
+7. If the charger requires a login (newer firmware), confirm the admin password. It is pre-filled with the charger's factory password; replace it if you changed the password. Chargers on older firmware need no password and skip this step.
 
 ## Authentication
 
-The integration logs in to the charger the same way its web interface does and gets a new access token before the current one expires (tokens last 24 hours). During setup, it reads the factory admin password from the charger web interface, which logs in with it automatically, and pre-fills the password field. If you changed the password, enter yours instead.
+Setup first tries the charger without a password, as older firmware needs none. If the charger rejects that, the integration asks for the admin password. If a charger set up without a password later starts requiring one (for example after a firmware update), Home Assistant asks for it through a reauthentication prompt.
+
+With a password, the integration logs in to the charger the same way its web interface does and gets a new access token before the current one expires (tokens last 24 hours). During setup, it reads the factory admin password from the charger web interface, which logs in with it automatically, and pre-fills the password field. If you changed the password, enter yours instead.
 
 Anyone on your network can use the factory password to control the charger. Consider changing it in the charger web interface, then entering the new password in Home Assistant under **Configure**.
 

@@ -42,14 +42,15 @@ class SwtchApiClient:
         self,
         session: aiohttp.ClientSession,
         host: str,
-        password: str,
+        password: str | None = None,
         timeout: int = 10,
         username: str = DEFAULT_USERNAME,
     ) -> None:
         """Initialize the API client.
 
-        The client logs in and renews its token by itself. The charger keeps
-        only one valid token at a time, so logins are serialized.
+        Without a password, requests are sent unauthenticated (older firmware).
+        With one, the client logs in and renews its token by itself. The
+        charger keeps only one valid token at a time, so logins are serialized.
         """
         self.session = session
         self.host = host
@@ -184,7 +185,9 @@ class SwtchApiClient:
             await self._login()
 
     async def _get(self, path: str) -> Any:
-        """Perform an authenticated GET, logging in again when needed."""
+        """Perform a GET, logging in first and again when needed."""
+        if not self.password:
+            return await self._request("GET", path)
         await self._ensure_token()
         token = self.token
         try:

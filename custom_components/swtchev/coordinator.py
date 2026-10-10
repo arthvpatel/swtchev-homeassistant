@@ -7,9 +7,10 @@ from datetime import timedelta
 import logging
 
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .api import SwtchApiClient, SwtchApiConnectionError, SwtchApiError
+from .api import SwtchApiAuthError, SwtchApiClient, SwtchApiConnectionError, SwtchApiError
 from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
@@ -37,6 +38,8 @@ class SwtchDataUpdateCoordinator(DataUpdateCoordinator[dict]):
             if not isinstance(station_info, dict) or not isinstance(network_info, dict):
                 raise UpdateFailed("Charger returned an invalid response")
             return {**station_info, "_network": network_info}
+        except SwtchApiAuthError as err:
+            raise ConfigEntryAuthFailed(str(err)) from err
         except SwtchApiConnectionError as err:
             raise UpdateFailed(str(err)) from err
         except SwtchApiError as err:

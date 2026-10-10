@@ -1,7 +1,7 @@
 {
   "domain": "swtchev",
   "name": "Swtch EV Charger",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "config_flow": true,
   "documentation": "https://github.com/arthvpatel/swtchev-homeassistant",
   "issue_tracker": "https://github.com/arthvpatel/swtchev-homeassistant/issues",

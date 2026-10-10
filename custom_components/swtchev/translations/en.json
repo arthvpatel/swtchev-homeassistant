@@ -23,6 +23,13 @@
         "data": {
           "password": "Admin password"
         }
+      },
+      "reauth_confirm": {
+        "title": "Charger requires a password",
+        "description": "The charger now requires the admin password (for example after a firmware update). Enter it to continue.",
+        "data": {
+          "password": "Admin password"
+        }
       }
     },
     "error": {
@@ -32,14 +39,15 @@
       "unknown": "Unexpected error"
     },
     "abort": {
-      "already_configured": "This charger is already configured"
+      "already_configured": "This charger is already configured",
+      "reauth_successful": "Password updated"
     }
   },
   "options": {
     "step": {
       "init": {
         "title": "Swtch EV Charger options",
-        "description": "Update the admin password and polling settings.",
+        "description": "Update the admin password and polling settings. Leave the password empty for chargers on older firmware that needs no login.",
         "data": {
           "password": "Admin password",
           "scan_interval": "Scan interval (seconds)",
