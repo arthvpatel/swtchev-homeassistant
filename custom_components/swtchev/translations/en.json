@@ -24,6 +24,13 @@
           "password": "Admin password"
         }
       },
+      "calibrate": {
+        "title": "Match the charger app (optional)",
+        "description": "Enter the total energy in kWh that the charger app shows right now, so the Energy sensor reads the same, for past, current and future charging. Leave it empty to use the raw meter value.",
+        "data": {
+          "app_energy": "Energy shown in the app"
+        }
+      },
       "reauth_confirm": {
         "title": "Charger requires a password",
         "description": "The charger now requires the admin password (for example after a firmware update). Enter it to continue.",
@@ -36,7 +43,8 @@
       "cannot_connect": "Failed to connect to the charger",
       "invalid_response": "The charger returned an invalid response",
       "invalid_auth": "The charger rejected the password",
-      "unknown": "Unexpected error"
+      "unknown": "Unexpected error",
+      "no_meter": "The charger reported no meter reading to calibrate against; try again in a moment"
     },
     "abort": {
       "already_configured": "This charger is already configured",
@@ -47,13 +55,18 @@
     "step": {
       "init": {
         "title": "Swtch EV Charger options",
-        "description": "Update the admin password and polling settings. Leave the password empty for chargers on older firmware that needs no login.",
+        "description": "Update the admin password and polling settings. Leave the password empty for chargers on older firmware that needs no login. To match the charger app, enter the kWh it shows right now; leave that empty to keep the current calibration.",
         "data": {
           "password": "Admin password",
           "scan_interval": "Scan interval (seconds)",
-          "timeout": "Timeout (seconds)"
+          "timeout": "Timeout (seconds)",
+          "app_energy": "Energy shown in the app (kWh)",
+          "reset_energy_calibration": "Remove the energy calibration (use the raw meter)"
         }
       }
+    },
+    "error": {
+      "no_meter": "The charger reported no meter reading to calibrate against; try again in a moment"
     }
   }
 }

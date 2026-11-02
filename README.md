@@ -7,6 +7,7 @@ A HACS custom integration for Swtch / Joint Tech EVL007 chargers using the charg
 - UI config flow for:
   - IP address
   - Admin password, only if the charger requires one (the integration logs in and renews its token automatically)
+  - Energy shown in the charger app (optional, see [Matching the app's energy](#matching-the-apps-energy))
   - Scan interval (seconds)
   - Timeout (seconds)
 - Polls `http://<charger-ip>/api/GetChargingStationInfo`
@@ -48,6 +49,10 @@ Upload this repository with the `custom_components/swtchev/` folder intact.
 5. Search for **Swtch EV Charger**.
 6. Enter the charger IP address, scan interval, and timeout.
 7. If the charger requires a login (newer firmware), confirm the admin password. It is pre-filled with the charger's factory password; replace it if you changed the password. Chargers on older firmware need no password and skip this step.
+
+## Matching the app's energy
+
+The charger's meter value does not always equal the kWh shown in the charger app. During setup (or later under **Configure**), enter the kWh the app shows right now. The integration works out the difference from the current meter reading and applies it to the **Energy** sensor, so it matches the app for past, current and all future charging. Leave the field empty to use the raw meter, or tick **Remove the energy calibration** under **Configure** to undo it. Re-entering a value recalibrates.
 
 ## Authentication
 

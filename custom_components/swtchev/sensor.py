@@ -16,9 +16,9 @@ from homeassistant.const import (
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN
+from .const import CONF_ENERGY_OFFSET, DOMAIN
 from .entity import SwtchCoordinatorEntity
-from .helpers import nested_get
+from .helpers import meter_wh, nested_get
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -230,7 +230,7 @@ async def async_setup_entry(
     """Set up Swtch sensors."""
     coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
     async_add_entities(
-        [SwtchSensorEntity(coordinator, description) for description in SENSORS]
+        [SwtchSensorEntity(coordinator, description, entry) for description in SENSORS]
     )
 
 
@@ -239,9 +239,15 @@ class SwtchSensorEntity(SwtchCoordinatorEntity, SensorEntity):
 
     entity_description: SwtchSensorDescription
 
-    def __init__(self, coordinator, description: SwtchSensorDescription) -> None:
+    def __init__(
+        self, coordinator, description: SwtchSensorDescription, entry: ConfigEntry
+    ) -> None:
         super().__init__(coordinator)
         self.entity_description = description
+        # Calibration makes the energy sensor match the charger app
+        self._energy_offset = float(
+            entry.options.get(CONF_ENERGY_OFFSET, entry.data.get(CONF_ENERGY_OFFSET, 0))
+        )
         self._attr_unique_id = f"{coordinator.api.host}_{description.key}"
 
     @property
@@ -295,13 +301,9 @@ class SwtchSensorEntity(SwtchCoordinatorEntity, SensorEntity):
                 return None
 
         if desc.value_type == "energy":
-            try:
-                energy = float(value)
-            except (TypeError, ValueError):
-                return None
-            # A zero reading is a firmware glitch, not a real reset; reporting it
-            # would make total_increasing count the full meter value again.
-            # Meter is reported in 0.1 Wh
-            return energy / 10 if energy > 0 else None
+            # None on a zero reading: reporting it would make total_increasing
+            # count the full meter value again
+            meter = meter_wh(data)
+            return None if meter is None else meter + self._energy_offset
 
         return value

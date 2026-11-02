@@ -10,6 +10,7 @@ from homeassistant.const import CONF_HOST, CONF_TIMEOUT
 from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
+    BooleanSelector,
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
@@ -25,13 +26,30 @@ from .api import (
     SwtchApiResponseError,
 )
 from .const import (
+    CONF_APP_ENERGY,
+    CONF_ENERGY_OFFSET,
     CONF_PASSWORD,
+    CONF_RESET_ENERGY,
     CONF_SCAN_INTERVAL,
     DEFAULT_SCAN_INTERVAL,
     DEFAULT_TIMEOUT,
     DOMAIN,
 )
+from .helpers import energy_offset_wh, meter_wh
 from .webui import WebUiSettings, async_fetch_settings
+
+
+def build_app_energy_selector() -> NumberSelector:
+    """Selector for the kWh total shown in the charger app."""
+    return NumberSelector(
+        NumberSelectorConfig(
+            min=0,
+            max=100000000,
+            step=0.001,
+            mode=NumberSelectorMode.BOX,
+            unit_of_measurement="kWh",
+        )
+    )
 
 
 def build_user_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
@@ -78,6 +96,7 @@ class SwtchConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Initialize the flow."""
         self._connection: dict[str, Any] = {}
         self._web_ui: WebUiSettings | None = None
+        self._meter: float | None = None
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None):
         """Ask for the charger address and polling settings."""
@@ -94,7 +113,7 @@ class SwtchConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             session = async_get_clientsession(self.hass)
             probe = SwtchApiClient(session=session, host=host, timeout=timeout)
             try:
-                await probe.async_get_station_info()
+                info = await probe.async_get_station_info()
             except SwtchApiAuthError:
                 pass
             except SwtchApiConnectionError:
@@ -104,14 +123,13 @@ class SwtchConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             except Exception:  # noqa: BLE001
                 errors["base"] = "unknown"
             else:
-                return self.async_create_entry(
-                    title=f"Swtch EV Charger ({host})",
-                    data={
-                        CONF_HOST: host,
-                        CONF_SCAN_INTERVAL: int(user_input[CONF_SCAN_INTERVAL]),
-                        CONF_TIMEOUT: timeout,
-                    },
-                )
+                self._connection = {
+                    CONF_HOST: host,
+                    CONF_SCAN_INTERVAL: int(user_input[CONF_SCAN_INTERVAL]),
+                    CONF_TIMEOUT: timeout,
+                }
+                self._meter = meter_wh(info)
+                return await self.async_step_calibrate()
 
             if not errors:
                 # Read the factory password the web UI logs in with, to pre-fill it
@@ -151,7 +169,7 @@ class SwtchConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             client.use_web_ui_settings(self._web_ui)
 
             try:
-                await client.async_get_station_info()
+                info = await client.async_get_station_info()
             except SwtchApiAuthError:
                 errors["base"] = "invalid_auth"
             except SwtchApiConnectionError:
@@ -163,16 +181,41 @@ class SwtchConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             except Exception:  # noqa: BLE001
                 errors["base"] = "unknown"
             else:
-                return self.async_create_entry(
-                    title=f"Swtch EV Charger ({host})",
-                    data={**self._connection, CONF_PASSWORD: password},
-                )
+                self._connection = {**self._connection, CONF_PASSWORD: password}
+                self._meter = meter_wh(info)
+                return await self.async_step_calibrate()
 
         factory_password = self._web_ui.password or ""
         return self.async_show_form(
             # Separate step texts, so the form says when the password was not found
             step_id="password" if factory_password else "password_not_found",
             data_schema=build_password_schema(factory_password),
+            errors=errors,
+        )
+
+    async def async_step_calibrate(self, user_input: dict[str, Any] | None = None):
+        """Optionally match the energy sensor to the kWh shown in the charger app."""
+        errors: dict[str, str] = {}
+        data = dict(self._connection)
+
+        if user_input is not None:
+            app_kwh = user_input.get(CONF_APP_ENERGY)
+            if app_kwh is not None:
+                offset = energy_offset_wh(self._meter, float(app_kwh))
+                if offset is None:
+                    errors["base"] = "no_meter"
+                else:
+                    data[CONF_ENERGY_OFFSET] = offset
+            if not errors:
+                return self.async_create_entry(
+                    title=f"Swtch EV Charger ({data[CONF_HOST]})", data=data
+                )
+
+        return self.async_show_form(
+            step_id="calibrate",
+            data_schema=vol.Schema(
+                {vol.Optional(CONF_APP_ENERGY): build_app_energy_selector()}
+            ),
             errors=errors,
         )
 
@@ -242,14 +285,32 @@ class SwtchOptionsFlowHandler(config_entries.OptionsFlowWithReload):
     async def async_step_init(self, user_input: dict[str, Any] | None = None):
         """Manage the integration options."""
         if user_input is not None:
-            return self.async_create_entry(
-                title="",
-                data={
+            entry = self._config_entry
+            offset = entry.options.get(
+                CONF_ENERGY_OFFSET, entry.data.get(CONF_ENERGY_OFFSET)
+            )
+            errors: dict[str, str] = {}
+            if user_input.get(CONF_RESET_ENERGY):
+                offset = None
+            elif user_input.get(CONF_APP_ENERGY) is not None:
+                coordinator = self.hass.data.get(DOMAIN, {}).get(entry.entry_id, {}).get(
+                    "coordinator"
+                )
+                meter = meter_wh(coordinator.data if coordinator else None)
+                offset = energy_offset_wh(meter, float(user_input[CONF_APP_ENERGY]))
+                if offset is None:
+                    errors["base"] = "no_meter"
+            if not errors:
+                data = {
                     CONF_PASSWORD: str(user_input.get(CONF_PASSWORD, "")).strip(),
                     CONF_SCAN_INTERVAL: int(user_input[CONF_SCAN_INTERVAL]),
                     CONF_TIMEOUT: int(user_input[CONF_TIMEOUT]),
-                },
-            )
+                }
+                if offset is not None:
+                    data[CONF_ENERGY_OFFSET] = offset
+                return self.async_create_entry(title="", data=data)
+        else:
+            errors = {}
 
         current = {
             CONF_PASSWORD: self._config_entry.options.get(
@@ -279,6 +340,8 @@ class SwtchOptionsFlowHandler(config_entries.OptionsFlowWithReload):
                 vol.Required(CONF_TIMEOUT, default=current[CONF_TIMEOUT]): NumberSelector(
                     NumberSelectorConfig(min=1, max=120, step=1, mode=NumberSelectorMode.BOX)
                 ),
+                vol.Optional(CONF_APP_ENERGY): build_app_energy_selector(),
+                vol.Optional(CONF_RESET_ENERGY, default=False): BooleanSelector(),
             }
         )
-        return self.async_show_form(step_id="init", data_schema=schema)
+        return self.async_show_form(step_id="init", data_schema=schema, errors=errors)
