@@ -52,6 +52,8 @@ Upload this repository with the `custom_components/swtchev/` folder intact.
 
 ## Matching the app's energy
 
+**Upgrading from an earlier version?** Open the integration, choose **Configure**, and enter the kWh your charger app shows right now. Without this, the Energy sensor keeps showing the raw meter value, which differs from the app.
+
 The charger's meter value does not always equal the kWh shown in the charger app. During setup (or later under **Configure**), enter the kWh the app shows right now. The integration works out the difference from the current meter reading and applies it to the **Energy** sensor, so it matches the app for past, current and all future charging. Leave the field empty to use the raw meter, or tick **Remove the energy calibration** under **Configure** to undo it. Re-entering a value recalibrates.
 
 ## Authentication
